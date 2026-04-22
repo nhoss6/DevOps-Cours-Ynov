@@ -1,53 +1,54 @@
-# TrainShop — Projet de Formation Docker Complete
+# TrainShop — Projet de Formation Docker
 
-## Pour qui ? Pour quoi ?
+## Présentation
 
-**TrainShop** est un projet multi-services Docker **prêt à l'emploi** pour formateurs et apprenants DevOps. Il démontre *tout* ce qu'on apprend dans un cours Docker 3 jours : images, containers, Compose, volumes, réseaux, healthchecks, bind mounts, multi-stage builds, scaling, logs.
+TrainShop est un projet multi-services Docker prêt à l'emploi pour formateurs et apprenants DevOps. Il couvre l'ensemble des concepts abordés dans un cours Docker de 3 jours : images, containers, Compose, volumes, réseaux, healthchecks, bind mounts, multi-stage builds, scaling et logs.
 
-Ce n'est pas une app Hello World. C'est une **vraie app de catalogue produits** avec 4 services qui communiquent, du cache, une DB persistante, du front. Chaque concept Docker est appliqué **en contexte réel**.
+Il s'agit d'une application de catalogue produits complète avec 4 services interconnectés, du cache, une base de données persistante et un frontend. Chaque concept Docker est appliqué dans un contexte réel.
 
-**Trainer** : Mohamed / MD Consulting Digital  
-**Audience** : Apprenants DevOps (Jour 1 → 3, ou Jour 2 → 4)  
-**Durée de setup** : 2 min (si Docker Desktop est installé)
+| | |
+|---|---|
+| **Formateur** | Mohamed Djabi — MD Consulting Digital |
+| **Public** | Apprenants DevOps (Jour 1 à 3, ou Jour 2 à 4) |
+| **Durée de setup** | 2 minutes (Docker Desktop requis) |
 
 ---
 
 ## Prérequis
 
-- **Docker Desktop** 4.20+ installé et démarré
-- Sur Windows : **WSL2** activé (pas Hyper-V seul)
-- Sur macOS/Linux : moteur Docker natif OK
-- Terminal ouvert (cmd, PowerShell, bash, zsh)
-- Éditeur de texte (VS Code recommandé)
-- Navigateur web (pour voir l'app)
+- Docker Desktop 4.20+ installé et démarré
+- Sur Windows : WSL2 activé
+- Terminal ouvert (cmd, PowerShell, bash ou zsh)
+- VS Code recommandé
 
-**Vérification rapide** :
+Vérification :
+
 ```bash
 docker --version
 docker compose version
 docker ps
 ```
-Si tout répond sans erreur, tu es bon.
 
 ---
 
-## Démarrage en 3 commandes
+## Démarrage
 
-### 1. Télécharger / cloner le projet
+### 1. Cloner le projet
+
 ```bash
-# Depuis Windows (cmd ou PowerShell)
 cd C:\Users\moham\Downloads
-git clone https://github.com/TRAINSHOP.git trainshop
-# ou dézipper l'archive trainshop.zip
+git clone https://github.com/nhoss6/DevOps-Cours-Ynov.git trainshop
 ```
 
-### 2. Configurer les variables d'env
+### 2. Configurer l'environnement
+
 ```bash
 cd trainshop
 cp .env.example .env
 ```
 
-Contenu de `.env` (déjà bon, ne change rien pour commencer) :
+Contenu du fichier `.env` :
+
 ```
 POSTGRES_USER=trainer
 POSTGRES_PASSWORD=trainshop_dev_only
@@ -58,196 +59,160 @@ NODE_ENV=production
 REDIS_URL=redis://cache:6379
 ```
 
-### 3. Lancer tout
+### 3. Lancer les services
+
 ```bash
 docker compose up -d
 ```
 
-**Attends 10-15 secondes** (Postgres démarre plus lentement la première fois).
+Attendre 10 à 15 secondes le temps que PostgreSQL démarre.
 
 ---
 
-## Vérification — Est-ce que ça marche ?
+## Vérification
 
-### Via le navigateur
-Ouvre **http://localhost:8080** dans Chrome/Firefox/Safari.
+### Navigateur
 
-Tu dois voir :
-- En-tête "TrainShop — Catalogue Produits"
-- Une liste de **10 produits** (Casque Bluetooth, Clavier mécanique, etc.)
-- Chaque produit : nom, prix, stock
-- En bas : badge vert **"✓ Services en bonne santé"** (si healthcheck ok)
+Ouvrir `http://localhost:8080`. La page doit afficher :
 
-### Via le terminal
+- L'en-tête TrainShop — Catalogue Produits
+- Une liste de 10 produits avec nom, prix et stock
+- Un badge vert "Services en bonne santé" en bas de page
+
+### Terminal
+
 ```bash
-# Voir tous les containers actifs
 docker ps
-
-# Attendre que tous passent à "healthy" (green)
 docker compose ps
-
-# Voir les logs de l'API (elles reçoivent tes requêtes du navigateur)
 docker compose logs -f api
-
-# Dans un autre terminal, teste l'API directement
 curl http://localhost:3000/api/products
 curl http://localhost:3000/api/health
 ```
 
-Si tout répond **en JSON**, c'est bon.
+---
+
+## Architecture
+
+```
+             Machine locale (Windows / macOS / Linux)
+             ==========================================
+                          localhost
+
+                 +----------------------+
+                 |      Navigateur      |
+                 |    :8080 (nginx)     |
+                 +----------------------+
+                           |
+         +-----------------+-----------------+
+         |                 |                 |
+         v                 v                 v
+ +-------------+   +-------------+   +-------------+
+ |     web     |   |     api     |   |     db      |
+ |   (nginx)   |   |  (Node.js)  |   | (Postgres)  |
+ | :8080->:80  |   | :3000->3000 |   |    :5432    |
+ +-------------+   +-------------+   +-------------+
+                         |                 |
+                         v                 v
+                  +-------------+   +-------------+
+                  |    cache    |   |   pgdata    |
+                  |   (Redis)   |   |  (Volume)   |
+                  |    :6379    |   | Persistant  |
+                  +-------------+   +-------------+
+
+Reseau : trainshop_net (bridge custom)
+Communication par DNS interne (api -> db, api -> cache)
+```
+
+### Services
+
+| Service | Image | Role |
+|---------|-------|------|
+| web | nginx alpine | Fichiers statiques, proxy /api vers api:3000 |
+| api | Node.js 20 alpine | Express, routes /api/*, DB et cache |
+| db | PostgreSQL 16 | Table products, init via init.sql |
+| cache | Redis 7 | Cache produits, TTL 30s |
 
 ---
 
-## Architecture : 4 services + réseau + volume
+## Commandes de référence
 
-```
-                       Ton machine (Windows/macOS/Linux)
-                       ══════════════════════════════════
-                               localhost
+### Cycle de vie
 
-                      ┌──────────────────────┐
-                      │   Navigateur         │
-                      │   :8080 (nginx)      │
-                      └──────────────────────┘
-                                │
-                ┌───────────────┼───────────────┐
-                │               │               │
-                ▼               ▼               ▼
-        ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-        │    web      │  │     api     │  │     db      │
-        │  (nginx)    │  │ (Node.js)   │  │ (Postgres)  │
-        │ :8080→:80   │  │ :3000→:3000 │  │ :5432       │
-        └─────────────┘  └─────────────┘  └─────────────┘
-                                │               │
-                                ▼               ▼
-                          ┌─────────────┐  ┌──────────────┐
-                          │   cache     │  │   pgdata     │
-                          │  (Redis)    │  │   (Volume)   │
-                          │ :6379       │  │ (Persistant) │
-                          └─────────────┘  └──────────────┘
-
-Réseau : trainshop_net (bridge custom)
-Services communiquent par DNS interne (api → db, api → cache par nom)
-```
-
-**Les 4 services** :
-1. **web** : nginx alpine, sert HTML/CSS/JS statiques, proxy /api → api:3000
-2. **api** : Node.js 20 alpine, Express, routes /api/*, gère DB + cache
-3. **db** : PostgreSQL 16, table `products`, init via init.sql
-4. **cache** : Redis 7, utilisé par api pour cache produits (TTL 30s)
-
----
-
-## Commandes essentielles à retenir
-
-### Container lifecycle
 ```bash
-# Tout démarrer (création + démarrage)
 docker compose up -d
-
-# Voir l'état
 docker compose ps
-
-# Logs du service api
-docker compose logs api
-docker compose logs -f api      # suivi en temps réel
-
-# Arrêter tout
+docker compose logs -f api
 docker compose down
-
-# Arrêter + supprimer les volumes (DANGER : perte données)
 docker compose down -v
-
-# Redémarrer un service
 docker compose restart api
 ```
 
-### Inside containers
-```bash
-# Entrer dans le shell du container api
-docker compose exec api sh
+### Accès aux containers
 
-# Exécuter une commande (pas de shell interactif)
+```bash
+docker compose exec api sh
 docker compose exec api node --version
 docker compose exec db psql -U trainer -d trainshop -c "SELECT * FROM products LIMIT 3;"
 ```
 
-### Images & cleanup
+### Images et nettoyage
+
 ```bash
-# Voir les images créées
 docker images | grep trainshop
-
-# Reconstruire une image (sans cache)
 docker compose build --no-cache api
-
-# Nettoyer tout (images, containers, volumes inutilisés) — ATTENTION
 docker system prune -a --volumes
 ```
 
 ### Debugging
+
 ```bash
-# Inspecter un service (config, status, healthcheck résultat)
 docker compose ps api
-docker inspect trainshop-api-1  # nom du container
-
-# Stats CPU/RAM en temps réel
+docker inspect trainshop-api-1
 docker stats trainshop-api-1
-
-# Tester la connexion au service
 docker compose exec api wget -q -O - http://localhost:3000/api/health
 ```
 
 ---
 
-## Pour la formation — Fichiers à lire en premier
+## Fichiers de formation
 
-1. **DEMO_GUIDE.md** ← commence ici ! Contient 50+ commandes classées par chapitre, avec observations pédagogiques
-2. **docs/ARCHITECTURE.md** ← montre le schéma + comment les services communiquent
-3. **docs/EXERCISES.md** ← 15 exercices progressifs à donner aux apprenants après chaque chapitre
+| Fichier | Contenu |
+|---------|---------|
+| `DEMO_GUIDE.md` | 50+ commandes classées par chapitre avec notes pédagogiques |
+| `docs/ARCHITECTURE.md` | Schéma détaillé et communication entre services |
+| `docs/EXERCISES.md` | 15 exercices progressifs par chapitre |
 
-Tous les fichiers source (Dockerfile, compose, code) ont des commentaires détaillés en français.
+Tous les fichiers source sont commentés en français.
 
 ---
 
-## Arrêter / Reset / Recommencer à zéro
+## Reset
 
-### Arrêter proprement
 ```bash
+# Arrêt propre, données conservées
 docker compose down
-# Les volumes restent (données persistantes)
-```
 
-### Tout arrêter + supprimer les données
-```bash
+# Suppression complète des données
 docker compose down -v
-# Les données Postgres sont supprimées
-```
 
-### Relancer après reset
-```bash
+# Relancer depuis zéro
 docker compose up -d
-# Les tables sont recréées depuis init.sql
 ```
 
-### Problème ? "Port déjà en utilisation" ou autre
-Voir **docs/TROUBLESHOOTING.md** (15 scénarios + solutions).
+En cas de problème, consulter `docs/TROUBLESHOOTING.md`.
 
 ---
 
-## Modifier le code en direct (mode dev)
+## Mode développement
 
-Par défaut, **docker-compose.yml** est prêt pour la démo (pas de bind mount).
-
-Pour **éditer en live** (l'app se met à jour sans rebuild) :
 ```bash
-# Ajouter le override dev
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
-
-# Les fichiers web/public/*.html et api/server.js sont maintenant liés au container
-# Ouvre api/server.js → modifie une route → recharge le browser → c'est à jour
 ```
 
-Revenir à la prod :
+Les fichiers `web/public/*.html` et `api/server.js` sont montés en bind mount. Toute modification est prise en compte sans rebuild.
+
+Retour en production :
+
 ```bash
 docker compose down
 docker compose up -d
@@ -255,24 +220,7 @@ docker compose up -d
 
 ---
 
-## Support & Contact
+## Contact
 
-**Trainer** : Mohamed Djabi  
-**Entreprise** : MD Consulting Digital  
-**Email** : contact@md-consulting.fr  
-**Tél** : +33 (sauf pour pings Docker 😊)
-
-Pour toute question sur le projet, ses fondamentaux ou l'intégration dans votre cours.
-
----
-
-## Prochaines étapes
-
-1. Lis **DEMO_GUIDE.md** pour voir les 50+ commandes classées par thème du cours
-2. Lance `docker compose up -d` et joue avec les commandes listées
-3. Partage les **EXERCISES.md** aux apprenants pour qu'ils pratiquent
-4. Modifie init.sql ou app.js selon tes besoins pédagogiques
-
-Bon cours !
-#   D e v O p s - C o u r s - Y n o v  
- 
+Mohamed Djabi — MD Consulting Digital  
+contact@md-consulting.fr

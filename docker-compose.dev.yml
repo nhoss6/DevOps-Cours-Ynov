@@ -1,0 +1,30 @@
+# Override Compose pour le développement
+# Lance avec : docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# Ajoute les bind mounts pour live reload du code
+
+version: '3.9'
+
+services:
+  api:
+    # Expose le port 3000 en dev pour accès direct à l'API (sans passer par nginx)
+    ports:
+      - "${API_PORT:-3000}:3000"
+    # Lie le code source en live (hot reload avec nodemon)
+    volumes:
+      - ./api:/app
+      - /app/node_modules  # Évite de perdre node_modules du container
+    environment:
+      - NODE_ENV=development
+      - DEBUG=trainshop:*
+
+  web:
+    # Lie les fichiers HTML/CSS/JS en live (nginx recharge automatiquement)
+    volumes:
+      - ./web/public:/usr/share/nginx/html
+      - ./web/nginx.conf:/etc/nginx/conf.d/default.conf
+
+  db:
+    # Pas de bind mount pour la DB en dev (volume persistant reste suffisant)
+    ports:
+      - "5432:5432"

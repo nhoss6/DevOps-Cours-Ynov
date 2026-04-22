@@ -1,0 +1,17 @@
+{
+  "name": "trainshop-web",
+  "version": "1.0.0",
+  "description": "TrainShop frontend — catalogue produits statique",
+  "main": "index.html",
+  "scripts": {
+    "build": "echo 'No build required for static files'",
+    "serve": "echo 'Use Docker with nginx'"
+  },
+  "keywords": [
+    "docker",
+    "training",
+    "frontend"
+  ],
+  "author": "MD Consulting Digital",
+  "license": "MIT"
+}

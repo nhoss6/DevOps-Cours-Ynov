@@ -1,0 +1,105 @@
+version: '3.9'
+
+services:
+  # Service web : Nginx alpine, sert le frontend statique + proxy /api vers l'API
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    image: trainshop-web:1.0
+    container_name: trainshop-web-1
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - trainshop_net
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Paris
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # Service API : Node.js 20 alpine, Express, PostgreSQL + Redis
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    image: trainshop-api:1.0
+    container_name: trainshop-api-1
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=3000
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://cache:6379
+      - TZ=Europe/Paris
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_started
+    networks:
+      - trainshop_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+
+  # Service DB : PostgreSQL 16 alpine, initialisé via init.sql
+  db:
+    image: postgres:16-alpine
+    container_name: trainshop-db-1
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - TZ=Europe/Paris
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - trainshop_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Service cache : Redis 7 alpine, cache pour l'API
+  cache:
+    image: redis:7-alpine
+    container_name: trainshop-cache-1
+    command: redis-server --appendonly yes
+    volumes:
+      - cache_data:/data
+    networks:
+      - trainshop_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+networks:
+  # Réseau bridge custom pour DNS interne et communication inter-services
+  trainshop_net:
+    driver: bridge
+
+volumes:
+  # Volume nommé pour la persistance PostgreSQL
+  pgdata:
+    driver: local
+  # Volume nommé pour Redis (optionnel, mais bon pour démo)
+  cache_data:
+    driver: local

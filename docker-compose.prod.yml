@@ -1,0 +1,34 @@
+# Override Compose pour la production
+# Lance avec : docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+version: '3.9'
+
+services:
+  api:
+    # En prod : restart automatique en cas de crash
+    restart: always
+    # Limites ressources (démo seulement, à adapter à ton infrastructure)
+    mem_limit: 512m
+    cpus: '0.5'
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+
+  web:
+    restart: always
+    mem_limit: 256m
+    cpus: '0.25'
+    environment:
+      - TZ=Europe/Paris
+
+  db:
+    restart: always
+    mem_limit: 1g
+    cpus: '1'
+    environment:
+      - POSTGRES_INITDB_ARGS=-c shared_preload_libraries=pg_stat_statements
+
+  cache:
+    restart: always
+    mem_limit: 256m
+    cpus: '0.25'
